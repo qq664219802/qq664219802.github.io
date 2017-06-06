@@ -36,7 +36,7 @@ function read(path, type) {
 	var output = "<h2><a href=\"browser.html?path=" + path.substring(0, path.lastIndexOf("/")) + "&type=4\">Back</a></h2><br>";
 	
 	var directory = chain.data;
-    var contents = 0x802b30000;
+    var contents = chain.data;
     var fsize = 0x100000;
     var dsize = 512;
 	
@@ -64,7 +64,6 @@ function read(path, type) {
 		chain.read_rdi_FromVariable(0);
 		
 		//chain.syscall("read", 3, undefined, undefined, size);
-		//setBase(contents);
         chain.syscall("read", 3, undefined, contents, fsize);
 	}
 	
