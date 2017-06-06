@@ -71,6 +71,7 @@ function allocateSharedMemory2() {
 	var executableHandle = JSON.parse(sessionStorage.executableHandle || "{}");
 
 	chain.call("createSharedMemoryAlias", LIBKERNEL, 0x196B0 , executableHandle, 1 | 2, chain.data);
+	//read_write
 	chain.syscall("mmap", 477, 0x926300000, SECTIONSIZE * 2, 1 | 2, 4096, -1, 0);
 	chain.write_rax_ToVariable(0);
 	
@@ -95,6 +96,7 @@ function mapSharedMemory() {
 	var writableHandle = JSON.parse(sessionStorage.writableHandle || "{}");
 
 	chain.call("mapSharedMemory", LIBKERNEL, 0x19700 , writableHandle, 1 | 2, chain.data);
+	//read execute
 	chain.syscall("mmap", 477, 0x926100000 + SECTIONSIZE, SECTIONSIZE, 1 | 4, 1, executableHandle, 0);
 	chain.write_rax_ToVariable(0);
 	

