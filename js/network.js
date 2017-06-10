@@ -45,7 +45,7 @@ function sendBuffer(hostAddr, hostPort, address, length) {
 	chain.call("connect", SCENET, 0x2DA0 , undefined, struct_addr_loc, SIZEOF_SIN);
 	
 	chain.read_rdi_FromVariable(0);
-	chain.call("send", SCENET, 0x2DD0 , undefined, address, fsize, 0);
+	chain.call("send", SCENET, 0x2DD0 , undefined, address, length, 0);
 	
 	chain.read_rdi_FromVariable(0);
 	chain.call("close", SCENET, 0x2E70 , undefined);

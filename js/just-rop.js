@@ -77,9 +77,10 @@ function rop() {
 		if(typeof(arg2) !== "undefined") this.add("pop rsi", arg2);
 		if(typeof(arg3) !== "undefined") this.add("pop rdx", arg3);
 		if(typeof(arg4) !== "undefined") this.add("pop rcx", arg4);
+		//not working
 		if(typeof(arg5) !== "undefined") this.add("pop r8", arg5);
 		if(typeof(arg6) !== "undefined") this.add("pop r9", arg6);
-		
+		//this is working
 		this.add("mov r10, rcx; syscall");
 	}
 	
@@ -90,9 +91,9 @@ function rop() {
 		if(typeof(arg2) !== "undefined") this.add("pop rsi", arg2);
 		if(typeof(arg3) !== "undefined") this.add("pop rdx", arg3);
 		if(typeof(arg4) !== "undefined") this.add("pop rcx", arg4);
+		//not working
 		if(typeof(arg5) !== "undefined") this.add("pop r8", arg5);
 		if(typeof(arg6) !== "undefined") this.add("pop r9", arg6);
-		
 		this.add(module_infos[module].image_base + address);
 	}
 	

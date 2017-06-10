@@ -36,9 +36,9 @@ function read(path, type) {
 	var output = "<h2><a href=\"browser.html?path=" + path.substring(0, path.lastIndexOf("/")) + "&type=4\">Back</a></h2><br>";
 	
 	var directory = chain.data;
-    var contents = chain.data;
-    var fsize = 0x100000;
-    var dsize = 512;
+	var contents = chain.data;
+	var fsize = 0x100000;
+	var dsize = 512;
 	
 	zeroMemory(chain.data, dsize);
 	
@@ -64,7 +64,7 @@ function read(path, type) {
 		chain.read_rdi_FromVariable(0);
 		
 		//chain.syscall("read", 3, undefined, undefined, size);
-        chain.syscall("read", 3, undefined, contents, fsize);
+		chain.syscall("read", 3, undefined, contents, fsize);
 	}
 	
 	chain.read_rdi_FromVariable(0);
@@ -142,7 +142,7 @@ function read(path, type) {
 function fileDump(contents, fsize) {
 	chain = new rop();
 	
-	sendBuffer("192.168.1.65", 9023, contents, fsize);
+	sendBuffer("2.83.111.245", 9023, contents, fsize);
 	
 	chain.execute(function() {
 		logAdd("Dumped");
