@@ -477,7 +477,7 @@ function payload() {
 		writeLoader(writeAddress); // WiFi-Loader
 		
 	setBase(writeAddress);
-	//logAdd(hexDump(writeAddress, 0xa0));
+	logAdd(hexDump(writeAddress, 0xa0));
 	chain.start(executeAddress); //<-- hitting this breaks it, grey screen
 
 	chain.write_rax_ToVariable(0);
