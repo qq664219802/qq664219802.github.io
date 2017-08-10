@@ -543,6 +543,16 @@ function launchLinux() {
 
 	setTimeout(function() { document.cookie = "codeExecutionStage=1.1"; location.reload(); }, 10);
 }
+
+function mapMem(){
+    
+    chain.syscall("mmap", 477, 0, 0x1000000, 1 | 2, 4096, -1, 0);
+chain.write_rax_ToVariable(0);
+chain.execute(function() {
+    chain.logVariable(0);
+});
+    
+}
 		</script>
 	</head>
 	
@@ -713,6 +723,10 @@ function launchLinux() {
 					<button onclick="location.reload()">Refresh</button>
 				</div>
 			</div>
+			
+			<div>
+                    <button onclick="mapMem()">Map Mem test</button>
+                </div>
 		</div>
 		
 		<br><br>
