@@ -32,12 +32,12 @@ function load() {
 	else if(codeExecutionStage == "2") {
 		mapSharedMemory();
 		document.getElementById("codeExecutionStage").innerHTML = "Stage: Waiting for payload...";
-		//setTimeout(function() { document.cookie = "codeExecutionStage=3"; location.reload(); }, 10);
+		setTimeout(function() { document.cookie = "codeExecutionStage=3"; location.reload(); }, 10);
 	}
 	else if(codeExecutionStage == "3") {
 		payload();
 		document.getElementById("codeExecutionStage").innerHTML = "Stage: Executing...";
-		setTimeout(function() { document.cookie = "codeExecutionStage=4"; location.reload(); }, 10);
+		//setTimeout(function() { document.cookie = "codeExecutionStage=4"; location.reload(); }, 10);
 	}
 	else if(codeExecutionStage == "4") {
 		copy();
