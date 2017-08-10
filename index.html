@@ -27,12 +27,12 @@ function load() {
 	else if(codeExecutionStage == "1.1") {
 		allocateSharedMemory2();
 		document.getElementById("codeExecutionStage").innerHTML = "Stage: Mapping shared memory 2...";
-		//setTimeout(function() { document.cookie = "codeExecutionStage=2"; location.reload(); }, 10);
+		setTimeout(function() { document.cookie = "codeExecutionStage=2"; location.reload(); }, 10);
 	}
 	else if(codeExecutionStage == "2") {
 		mapSharedMemory();
 		document.getElementById("codeExecutionStage").innerHTML = "Stage: Waiting for payload...";
-		setTimeout(function() { document.cookie = "codeExecutionStage=3"; location.reload(); }, 10);
+		//setTimeout(function() { document.cookie = "codeExecutionStage=3"; location.reload(); }, 10);
 	}
 	else if(codeExecutionStage == "3") {
 		payload();
