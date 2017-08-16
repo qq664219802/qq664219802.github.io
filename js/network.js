@@ -38,10 +38,11 @@ function sendBuffer(hostAddr, hostPort, address, length) {
 	writeString(socket_name_loc, socket_name);
 	writeString(struct_addr_loc, struct_addr);
 	
+	
 	chain.call("socket", SCENET, 0x2D60 , socket_name_loc, SCE_NET_AF_INET, SCE_NET_SOCK_STREAM, 0);
 	chain.write_rax_ToVariable(0);
-	
 	chain.read_rdi_FromVariable(0);
+	
 	chain.call("connect", SCENET, 0x2DA0 , undefined, struct_addr_loc, SIZEOF_SIN);
 	
 	chain.read_rdi_FromVariable(0);
@@ -49,6 +50,7 @@ function sendBuffer(hostAddr, hostPort, address, length) {
 	
 	chain.read_rdi_FromVariable(0);
 	chain.call("close", SCENET, 0x2E70 , undefined);
+	
 }
 
 function sendMessage(hostAddr, hostPort, message, length) {
@@ -91,6 +93,7 @@ function receiveBufferS1(hostPort, buffer, length) {
 	chain.write_rax_ToVariable(0);
 	
 	chain.read_rdi_FromVariable(0);
+	
 	chain.call("bind", SCENET, 0x2D70 , undefined, struct_addr_loc, SIZEOF_SIN);
 	
 	chain.read_rdi_FromVariable(0);
@@ -98,6 +101,7 @@ function receiveBufferS1(hostPort, buffer, length) {
 	
 	chain.read_rdi_FromVariable(0);
 	chain.call("accept", SCENET, 0x2D90 , undefined, 0, 0);
+	
 }
 
 function receiveBufferS2(hostPort, buffer, length) {
