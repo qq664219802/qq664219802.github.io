@@ -1,123 +1,138 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html manifest="offline.manifest">
-<head>
-  <title>PS4Brew 4.74</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    .loader {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      margin: -75px 0 0 -75px;
 
-      border: 10px solid #f3f3f3;
-      border-radius: 50%;
-      border-top: 10px solid #044595;
-      border-left: 10px solid #044595;
-      width: 120px;
-      height: 120px;
-
-      -webkit-animation: spin 1s linear infinite;
-    }
-
-    .info {
-      overflow: hidden;
-      position: fixed;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-
-      font-size: 45px;
-      font-family: sans-serif;
-
-      transform: translate(-50%, -50%);
-    }
-
-    .credits {
-      overflow: hidden;
-      position: fixed;
-      position: absolute;
-      top: 90%;
-      left: 50%;
-
-      font-size: 16px;
-      font-family: sans-serif;
-      text-align: center;
-
-      transform: translate(-50%, -90%);
-    }
-
-    @-webkit-keyframes spin {
-      0% { -webkit-transform: rotate(0deg); }
-      100% { -webkit-transform: rotate(360deg); }
-    }
-  </style>
+<!-- saved from url=(0022)https://ps4.91wii.com/ -->
+<html manifest="offline.manifest"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<title>PS4-5.05 破解主机菜单</title>
+<style>
+html {
+    height: 100%;
+}
+body {
+    background-position: right bottom;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: 100%;
+}
+#wrapper {
+    width: 100%;
+}
+#contentHeader {
+    padding: 20px 40px;
+    background: #003263;
+    border-top: 1px solid #6392b1;
+}
+#content {
+    width: 100%;
+}
+#contentBody {
+    padding: 40px 50px 20px;
+    color: #333;
+}
+h1 {
+    font-size: 150%;
+    color: #fff;
+}
+h2 {
+    font-size: 130%;
+    font-weight: normal;
+    border-bottom: 1px solid #003488;
+    margin-bottom: 1em;
+}
+h3 {
+    font-size: 120%;
+    margin-top: 2em;
+    padding-left: 5px;
+    border-left: 10px solid #9EC9E1;
+    margin-bottom: 1em;
+}
+h4 {
+    font-size: 100%;
+    color: #fff;
+}
+ul.default {
+    list-style: disc outside;
+    margin-bottom: 1em;
+}
+ul.default li {
+    margin-left: 1.5em;
+    padding-left: 0;
+}
+.btn {
+    padding: 16px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 24px;
+    margin: 4px 2px;
+    -webkit-transition-duration: 0.4s;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+.btn-main {
+    width: 450px;
+    background-color: #003263;
+    color: white;
+    border-radius: 8px;
+}
+.btn-main:hover {
+    width: 450px;
+    background-color: #0058b1;
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 12px 16px 0 rgba(0, 140, 186, 0.24), 0 17px 50px 0 rgba(0, 140, 186,0.19)
+}
+</style>
 </head>
-<body style="margin:0;">
-  <script>
-    window.didload = 0;
-    window.didpost = 0;
+<body>
+<div id="wrapper">
+<div id="contentWrapper">
+<div id="contentHeader">
+<h1>PS4 破解引导主页 离线自建</h1>
+<h4>服务器搭建：Kavid  游戏分享网：www.gamestar.top/forum-45-1.html
+ <br>更多教程访问www.91wii.com <br>本自建引导主页由91论坛oiiocn修改</h4>
+</div>
+<div id="content">
+<div id="contentBody">
+<h2>5.05 破解入口（HEN 破解为安装或运行破解游戏）</h2>
 
-    window.onload = function () {
-      window.didload = 1;
-      if (window.didpost == 1)
-        setTimeout(window.stage2, 1500);
-    }
-    window.postExpl = function () {
-      window.didpost = 1;
-      if (window.didload == 1)
-        setTimeout(window.stage2, 1500);
-    }
 
-    function allset() {
-      document.getElementById("loader").style.display = "none";
-      document.getElementById("allset").style.display = "block";
-    }
+<a href="hen1.7.html"><button class="btn btn-main">HEN 破解 v1.7（常用方式）</button></a>
 
-    function awaitpl() {
-      document.getElementById("loader").style.display = "none";
-      document.getElementById("awaiting").style.display = "block";
-    }
+<a href="hen1.8.html"><button class="btn btn-main">HEN 破解 v1.8（支持VR）</button></a>
 
-    function fail(info) {
-      document.getElementById("loader").style.display = "none";
-      document.getElementById("fail").style.display = "block";
-    }
-  </script>
+<a href="hen2.0.html"><button class="btn btn-main">HEN 破解 v2.0（休眠待机）</button></a>
 
-  <div id="loader" class="loader"></div>
+<a href="hen2.1.html"><button class="btn btn-main">HEN 破解 v2.1（支持游戏待机）</button></a>
 
-  <div id="awaiting" class="info" style="display:none;">
-    Awaiting Payload...
-  </div>
+<a href="jiazai.html"><button class="btn btn-main">.bin 加载器（金手指连接）</button></a>
 
-  <div id="allset" class="info" style="display:none;">
-    You're all set!
-  </div>
+<a href="jinzhi.html"><button class="btn btn-main">屏蔽更新 v1.0（仅需一次）</button></a>
 
-  <div id="fail" class="info" style="display:none;">
-    Something went wrong :(
-  </div>
+<a href="qiyong.html"><button class="btn btn-main">开启更新 v1.0（仅需一次）</button></a>
 
-  <div id="badfw" class="info" style="display:none;">
-    Only PS4 firmware 4.74 is supported!
-  </div>
+<a href="FTP.html"><button class="btn btn-main">FTP 功能v1.3</button></a>
 
-  <div id="footer" class="credits">
-    <ul style="list-style: none;padding-left:0">
-      <li>Bug from qwertyoruiopz</li>
-      <li>PS4HEN thanks to flatz, idc, CelesteBlue, zecoxao, wildcard, SocraticBliss, PabloGoat</li>
-      <li>Implementation by Specter</li>
-      <li>2018 PS4NoBD Team</li>
-    </ul>
-  </div>
+<a href="DUMP.html"><button class="btn btn-main">DUMP 游戏 v1.8</button></a>
 
-  <script src="./rop.js"></script>
-  <script src="./syscalls.js"></script>
-  <script src="./expl.js"></script>
-  <script src="./userland.js"></script>
-  <script src="./homebrew.js"></script>
-  <script src="./mira.js"></script>
-  <pre id="console"></pre>
-</body>
-</html>
+<a href="AppToUsb.html"><button class="btn btn-main">AppToUSB v3</button></a>
+
+<a href="Backup.html"><button class="btn btn-main">DG和SG备份</button></a>
+
+<a href="Db_Restore.html"><button class="btn btn-main">DG和SG数据还原v2</button></a>
+
+<a href="reactPSPlus.html"><button class="btn btn-main">激活PS会员游戏</button></a>
+
+<a href="UNREACTPSPLUS.html"><button class="btn btn-main">还原会员游戏激活</button></a>
+
+<a href="VR.html"><button class="btn btn-main">启动 VR</button></a>
+
+<a href="Linux.html"><button class="btn btn-main">Linux 加载器</button></a>
+
+<a href="ps4ren.html"><button class="btn btn-main">PS4REN串流（简易进入IDU模式）</button></a>
+</div>
+</div>
+</div>
+</div>
+</body></html>
